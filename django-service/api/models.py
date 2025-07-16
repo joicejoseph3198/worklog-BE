@@ -6,6 +6,7 @@ class Task(models.Model):
     description = models.TextField(null=True, blank=True)
     tag = models.CharField(max_length=100, null=True, blank=True)
     date = models.DateField()
+    ticked = models.BooleanField(default=False)
     # audit fields
     active = models.BooleanField(default=True)
     deleted = models.BooleanField(default=False)
@@ -19,6 +20,7 @@ class Task(models.Model):
             f"description={self.description}, "
             f"tag={self.tag}, "
             f"date={self.date} "
+            f"ticked={self.ticked}"
             f"active={self.active}, "
             f"deleted={self.deleted}, "
             f"created_at={self.created_at}, "
@@ -27,3 +29,37 @@ class Task(models.Model):
     # To explicitly set properties
     class Meta:
         db_table = "task"
+
+class Notes(models.Model):
+    user_id = models.CharField(max_length=100)
+    date = models.DateField()
+    body = models.TextField(blank=True, max_length=20000)
+    # audit fields
+    active = models.BooleanField(default=True)
+    deleted = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Note(id={self.id}, user={self.user_id}, date={self.date})"
+
+    class Meta:
+        db_table = "notes"
+
+
+class Schedule(models.Model):
+    user_id = models.CharField(max_length=100)
+    date = models.DateField()
+    hour = models.IntegerField()
+    detail = models.TextField(blank=True,max_length=500)
+    # audit fields
+    active = models.BooleanField(default=True)
+    deleted = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Schedule(id={self.id}, user={self.user_id}, date={self.date} hour={self.hour} detail={self.detail})"
+
+    class Meta:
+        db_table = "schedule"

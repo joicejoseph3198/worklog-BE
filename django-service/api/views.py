@@ -1,22 +1,16 @@
 from http import HTTPStatus
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import TaskCreateSerializer, TaskResponseSerializer
-from .models import Task
+from .serializers import TaskCreateSerializer, TaskResponseSerializer, TaskUpdateSerializer, NotesSerializer
+from .models import Task, Notes
 from .utils import JWTAuthentication
 
 class TaskCreateView(APIView):
     authentication_classes = [JWTAuthentication]
     def post(self, request):
         user_id = request.auth["sub"]
-        data = {
-            'user_id': user_id,
-            'tag': request.data.get('tag'),
-            'title': request.data.get('title'),
-            'description': request.data.get('description'),
-            'date': request.data.get('date')
-        }
-        serializer = TaskCreateSerializer(data = data)
+        request.data["user_id"] = user_id
+        serializer = TaskCreateSerializer(data = request.data)
         if serializer.is_valid():
             saved_task = serializer.save()
             response_serializer = TaskResponseSerializer(saved_task)
@@ -32,9 +26,9 @@ class TaskGetByIdView(APIView):
         except Task.DoesNotExist:
             return Response({"message": "Task not found"}, status=HTTPStatus.NOT_FOUND)
         serializer = TaskResponseSerializer(task)
-        return Response({'date': serializer.data, 'message': 'Task fetched successfully'}, HTTPStatus.OK)
+        return Response({'data': serializer.data, 'message': 'Task fetched successfully'}, HTTPStatus.OK)
 
-class TaskGetByDate(APIView):
+class TaskGetByDateView(APIView):
     authentication_classes = [JWTAuthentication]
     def get(self, request):
         date = request.GET.get("date")
@@ -44,4 +38,77 @@ class TaskGetByDate(APIView):
             serializer = TaskResponseSerializer(tasks, many=True)
         except Task.DoesNotExist:
             return Response({"message": "Task not found"}, status=HTTPStatus.NOT_FOUND)
-        return Response({'date': serializer.data, 'message': 'Task fetched successfully'}, HTTPStatus.OK)
+        return Response({'data': serializer.data, 'message': 'Task fetched successfully'}, HTTPStatus.OK)
+
+class TaskUpdateView(APIView):
+    authentication_classes = [JWTAuthentication]
+    def patch(self, request):
+        user_id = request.auth["sub"]
+        task_id = request.data.get("id")
+        if not task_id:
+            return Response({"message": "Task ID is required"}, status=HTTPStatus.BAD_REQUEST)
+        try:
+            task = Task.objects.get(id=task_id, user_id=user_id)
+        except Task.DoesNotExist:
+            return Response({"message": "Task not found"}, status=HTTPStatus.NOT_FOUND)
+        # Use partial=True so only provided fields are updated
+        serializer = TaskUpdateSerializer(task, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=HTTPStatus.OK)
+        else:
+            return Response(serializer.errors, status=HTTPStatus.BAD_REQUEST)
+
+
+class TaskDeleteView(APIView):
+    authentication_classes = [JWTAuthentication]
+    def delete(self, request,id):
+        user_id = request.auth["sub"]
+        try:
+            task = Task.objects.get(id=id, user_id = user_id)
+        except Task.DoesNotExist:
+            return Response({"message": "Task not found"}, status=HTTPStatus.NOT_FOUND)
+        task.delete()
+        return Response({"message": "Task deleted successfully"}, status=HTTPStatus.NO_CONTENT)
+
+
+class NotesGetByDateView(APIView):
+    authentication_classes = [JWTAuthentication]
+    def get(self,request):
+        user_id = request.auth["sub"]
+        date_str = request.GET.get("date")
+        try:
+            note = Notes.objects.get(date=date_str, user_id=user_id)
+            serializer = NotesSerializer(note)
+        except Notes.DoesNotExist:
+            return Response({"message": "Task not found"}, status=HTTPStatus.NOT_FOUND)
+        return Response(serializer.data, HTTPStatus.OK)
+
+
+class NoteUpsertDeleteView(APIView):
+    authentication_classes = [JWTAuthentication]
+    def post(self, request):
+        user_id = request.auth["sub"]
+        body = request.data.get("body", "")
+        date_str = request.data.get("date")
+
+        if not user_id:
+            return Response({"error": "user_id is required."}, status=HTTPStatus.BAD_REQUEST)
+
+        if not date_str:
+            return Response({"error": "date is required."}, status=HTTPStatus.BAD_REQUEST)
+
+        note, created = Notes.objects.get_or_create(user_id=user_id, date=date_str)
+
+        if body == "":
+            note.delete()
+            return Response({"message": "Note marked as deleted."}, status=HTTPStatus.OK)
+        else:
+            note.body = body
+            serializer = NotesSerializer(note, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=HTTPStatus.OK)
+            else:
+                return Response(serializer.errors, status=HTTPStatus.BAD_REQUEST)
