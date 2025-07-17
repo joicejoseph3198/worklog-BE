@@ -2,7 +2,7 @@ from http import HTTPStatus
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .serializers import TaskCreateSerializer, TaskResponseSerializer, TaskUpdateSerializer, NotesSerializer
-from .models import Task, Notes
+from .models import Task, Notes, Schedule
 from .utils import JWTAuthentication
 
 class TaskCreateView(APIView):
@@ -90,7 +90,7 @@ class NoteUpsertDeleteView(APIView):
     authentication_classes = [JWTAuthentication]
     def post(self, request):
         user_id = request.auth["sub"]
-        body = request.data.get("body", "")
+        body = request.data.get("body")
         date_str = request.data.get("date")
 
         if not user_id:
@@ -112,3 +112,51 @@ class NoteUpsertDeleteView(APIView):
                 return Response(serializer.data, status=HTTPStatus.OK)
             else:
                 return Response(serializer.errors, status=HTTPStatus.BAD_REQUEST)
+
+class ScheduleUpsertDeleteView(APIView):
+    authentication_classes = [JWTAuthentication]
+    def post(self, request):
+        user_id = request.auth["sub"]
+        date = request.data.get("date")
+        schedule_list = request.data.get("schedule", [])
+
+        if not date or not isinstance(schedule_list, list):
+            return Response({"error": "Invalid payload"}, status=HTTPStatus.BAD_REQUEST)
+
+        results = []
+        for item in schedule_list:
+            hour = item.get("hour")
+            entry = item.get("entry", "").strip()
+
+            if hour is None:
+                continue  # skip invalid items
+
+            # DELETE if entry is empty
+            if entry == "":
+                Schedule.objects.filter(user_id=user_id, date=date, hour=hour).delete()
+                results.append({"hour": hour, "action": "deleted"})
+            else:
+
+                # UPSERT (update if exists, else create)
+                obj, created = Schedule.objects.update_or_create(
+                    user_id=user_id,
+                    date=date,
+                    hour=hour,
+                    defaults={"detail": entry}
+                )
+                results.append({"hour": hour, "action": "created" if created else "updated"})
+
+        return Response({"result": results}, status=HTTPStatus.OK)
+
+class ScheduleFetchView(APIView):
+    authentication_classes = [JWTAuthentication]
+    def get(self, request):
+        user_id = request.auth["sub"]
+        date = request.GET.get("date")
+
+        if not date:
+            return Response({"error": "Missing 'date' query parameter"}, status=HTTPStatus.BAD_REQUEST)
+
+        entries = Schedule.objects.filter(user_id=user_id, date=date).values("hour", "detail").order_by("hour")
+
+        return Response({"data": list(entries)}, status=HTTPStatus.OK)

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Task, Notes
+from .models import Task, Notes, Schedule
 
 
 class TaskCreateSerializer(serializers.ModelSerializer):
@@ -36,3 +36,8 @@ class NotesSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'body': {'required': False, 'allow_blank': True},
         }
+
+class ScheduleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Schedule
+        fields = [ 'user_id', 'hour', 'date', 'detail']
