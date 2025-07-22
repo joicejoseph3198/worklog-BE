@@ -103,8 +103,7 @@ class NoteUpsertDeleteView(APIView):
         note, created = Notes.objects.get_or_create(user_id=user_id, date=date_str)
 
         if body == "" or None:
-            note.delete()
-            return Response({"message": "Note marked as deleted."}, status=HTTPStatus.OK)
+            return Response({"message": "Note contains empty body."}, status=HTTPStatus.OK)
         else:
             note.body = body
             serializer = NotesSerializer(note, data=request.data, partial=True)
