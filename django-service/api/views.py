@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from .serializers import TaskCreateSerializer, TaskResponseSerializer, TaskUpdateSerializer, NotesSerializer
 from .models import Task, Notes, Schedule
 from .utils import JWTAuthentication
+import datetime
 
 class TaskCreateView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -101,7 +102,7 @@ class NoteUpsertDeleteView(APIView):
 
         note, created = Notes.objects.get_or_create(user_id=user_id, date=date_str)
 
-        if body == "":
+        if body == "" or None:
             note.delete()
             return Response({"message": "Note marked as deleted."}, status=HTTPStatus.OK)
         else:
