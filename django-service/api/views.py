@@ -102,7 +102,7 @@ class NoteUpsertDeleteView(APIView):
 
         note, created = Notes.objects.get_or_create(user_id=user_id, date=date_str)
 
-        if body == "" or None:
+        if not body or body.strip() == "":
             return Response({"message": "Note contains empty body."}, status=HTTPStatus.OK)
         else:
             note.body = body
