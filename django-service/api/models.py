@@ -1,12 +1,27 @@
 from django.db import models
+
 # Create your models here.
 class Task(models.Model):
+    STATUS_CHOICES = [
+        ('not-started', 'Not Started'),
+        ('in-progress', 'In Progress'),
+        ('blocked', 'Blocked'),
+        ('done', 'Done'),
+        ('rollover', 'Rollover'),
+        ('initiated', 'Initiated'),
+    ]
+    
     user_id = models.CharField(max_length=100)
     title = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
     tag = models.CharField(max_length=100, null=True, blank=True)
     date = models.DateField()
     ticked = models.BooleanField(default=False)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='not-started'
+    )
     # audit fields
     active = models.BooleanField(default=True)
     deleted = models.BooleanField(default=False)
@@ -19,13 +34,15 @@ class Task(models.Model):
             f"title={self.title}, "
             f"description={self.description}, "
             f"tag={self.tag}, "
-            f"date={self.date} "
-            f"ticked={self.ticked}"
+            f"date={self.date}, "
+            f"ticked={self.ticked}, "
+            f"status={self.status}, "
             f"active={self.active}, "
             f"deleted={self.deleted}, "
             f"created_at={self.created_at}, "
             f"updated_at={self.updated_at})"
-    )
+        )
+    
     # To explicitly set properties
     class Meta:
         db_table = "task"
@@ -52,7 +69,7 @@ class Schedule(models.Model):
     user_id = models.CharField(max_length=100)
     date = models.DateField()
     hour = models.IntegerField()
-    detail = models.TextField(blank=True,max_length=500)
+    detail = models.TextField(blank=True, max_length=500)
     # audit fields
     active = models.BooleanField(default=True)
     deleted = models.BooleanField(default=False)
