@@ -80,11 +80,15 @@ class NotesGetByDateView(APIView):
         user_id = request.auth["sub"]
         date_str = request.GET.get("date")
         try:
-            note = Notes.objects.get(date=date_str, user_id=user_id)
-            serializer = NotesSerializer(note)
-        except Notes.DoesNotExist:
-            return Response({"message": "Task not found"}, status=HTTPStatus.NOT_FOUND)
-        return Response(serializer.data, HTTPStatus.OK)
+            # Use filter().first() to handle potential duplicates gracefully
+            note = Notes.objects.filter(date=date_str, user_id=user_id).first()
+            if note:
+                serializer = NotesSerializer(note)
+                return Response(serializer.data, HTTPStatus.OK)
+            else:
+                return Response({"message": "Note not found"}, status=HTTPStatus.NOT_FOUND)
+        except Exception as e:
+            return Response({"message": "Error fetching note"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
 class NoteUpsertDeleteView(APIView):
@@ -100,18 +104,16 @@ class NoteUpsertDeleteView(APIView):
         if not date_str:
             return Response({"error": "date is required."}, status=HTTPStatus.BAD_REQUEST)
 
-        note, created = Notes.objects.get_or_create(user_id=user_id, date=date_str)
+        # Handle potential duplicates by using update_or_create instead of get_or_create
+        note, created = Notes.objects.update_or_create(
+            user_id=user_id, 
+            date=date_str,
+            defaults={'body': body if body and body.strip() else ''}
+        )
 
-        if not body or body.strip() == "":
-            return Response({"message": "Note contains empty body."}, status=HTTPStatus.OK)
-        else:
-            note.body = body
-            serializer = NotesSerializer(note, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=HTTPStatus.OK)
-            else:
-                return Response(serializer.errors, status=HTTPStatus.BAD_REQUEST)
+        # Always return the note data, regardless of content
+        serializer = NotesSerializer(note)
+        return Response(serializer.data, status=HTTPStatus.OK)
 
 class ScheduleUpsertDeleteView(APIView):
     authentication_classes = [JWTAuthentication]

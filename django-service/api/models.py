@@ -45,6 +45,7 @@ class Notes(models.Model):
 
     class Meta:
         db_table = "notes"
+        unique_together = ['user_id', 'date']
 
 
 class Schedule(models.Model):
