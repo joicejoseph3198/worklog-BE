@@ -74,17 +74,64 @@ class TaskDeleteView(APIView):
         return Response({"message": "Task deleted successfully"}, status=HTTPStatus.NO_CONTENT)
 
 
+class TaskCopyFromDateView(APIView):
+    authentication_classes = [JWTAuthentication]
+    def post(self, request):
+        user_id = request.auth["sub"]
+        source_date = request.data.get("source_date")
+        target_date = request.data.get("target_date")
+        
+        if not source_date or not target_date:
+            return Response({"message": "Both source_date and target_date are required"}, status=HTTPStatus.BAD_REQUEST)
+        
+        try:
+            # Get all tasks from source date
+            source_tasks = Task.objects.filter(date=source_date, user_id=user_id)
+            
+            if not source_tasks.exists():
+                return Response({"message": "No tasks found for the source date"}, status=HTTPStatus.NOT_FOUND)
+            
+            # Copy tasks to target date
+            copied_tasks = []
+            for source_task in source_tasks:
+                # Create new task with same data but new date
+                new_task = Task.objects.create(
+                    user_id=user_id,
+                    title=source_task.title,
+                    tag=source_task.tag,
+                    description=source_task.description,
+                    date=target_date,
+                    status='not-started',  # Reset status for copied tasks
+                    ticked=False  # Reset completion status
+                )
+                copied_tasks.append(new_task)
+            
+            # Serialize the copied tasks
+            serializer = TaskResponseSerializer(copied_tasks, many=True)
+            return Response({
+                'data': serializer.data, 
+                'message': f'Successfully copied {len(copied_tasks)} tasks from {source_date} to {target_date}'
+            }, status=HTTPStatus.CREATED)
+            
+        except Exception as e:
+            return Response({"message": f"Error copying tasks: {str(e)}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+
 class NotesGetByDateView(APIView):
     authentication_classes = [JWTAuthentication]
     def get(self,request):
         user_id = request.auth["sub"]
         date_str = request.GET.get("date")
         try:
-            note = Notes.objects.get(date=date_str, user_id=user_id)
-            serializer = NotesSerializer(note)
-        except Notes.DoesNotExist:
-            return Response({"message": "Task not found"}, status=HTTPStatus.NOT_FOUND)
-        return Response(serializer.data, HTTPStatus.OK)
+            # Use filter().first() to handle potential duplicates gracefully
+            note = Notes.objects.filter(date=date_str, user_id=user_id).first()
+            if note:
+                serializer = NotesSerializer(note)
+                return Response(serializer.data, HTTPStatus.OK)
+            else:
+                return Response({"message": "Note not found"}, status=HTTPStatus.NOT_FOUND)
+        except Exception as e:
+            return Response({"message": "Error fetching note"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
 class NoteUpsertDeleteView(APIView):
@@ -100,18 +147,16 @@ class NoteUpsertDeleteView(APIView):
         if not date_str:
             return Response({"error": "date is required."}, status=HTTPStatus.BAD_REQUEST)
 
-        note, created = Notes.objects.get_or_create(user_id=user_id, date=date_str)
+        # Handle potential duplicates by using update_or_create instead of get_or_create
+        note, created = Notes.objects.update_or_create(
+            user_id=user_id, 
+            date=date_str,
+            defaults={'body': body if body and body.strip() else ''}
+        )
 
-        if not body or body.strip() == "":
-            return Response({"message": "Note contains empty body."}, status=HTTPStatus.OK)
-        else:
-            note.body = body
-            serializer = NotesSerializer(note, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=HTTPStatus.OK)
-            else:
-                return Response(serializer.errors, status=HTTPStatus.BAD_REQUEST)
+        # Always return the note data, regardless of content
+        serializer = NotesSerializer(note)
+        return Response(serializer.data, status=HTTPStatus.OK)
 
 class ScheduleUpsertDeleteView(APIView):
     authentication_classes = [JWTAuthentication]
