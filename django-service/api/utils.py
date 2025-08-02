@@ -15,12 +15,12 @@ class JWTAuthentication(BaseAuthentication):
         auth_header = request.headers.get('Authorization')
         
         # For development, allow requests without authentication
-        if not auth_header:
-            # Return a default user for development
-            return None, {"sub": "dev-user-123", "token": None}
+        # if not auth_header:
+        #     Return a default user for development
+        #     return None, {"sub": "dev-user-123", "token": None}
         
-        if not auth_header.startswith('Bearer '):
-            raise AuthenticationFailed("Authorization header invalid format.")
+        if not auth_header or not auth_header.startswith('Bearer '):
+            raise AuthenticationFailed("Authorization header missing or invalid.")
 
         token = auth_header.split(" ")[1]
 
